@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en-US" target-language="es-ES" datatype="html" original="storyline">
+    <body>
+      <trans-unit id="slide1_text1" resname="Welcome Slide">
+        <source>Welcome to the course, <x id="1" ctype="bold"/>%UserName%%!</source>
+        <target state="new"></target>
+      </trans-unit>
+      <trans-unit id="slide1_text2">
+        <source>Click <x id="2" ctype="image"/> to continue.</source>
+        <target state="new"></target>
+      </trans-unit>
+      <trans-unit id="slide2_text1" resname="Quiz Introduction">
+        <source>You have %TotalQuestions%% questions to answer.</source>
+        <target state="new"></target>
+      </trans-unit>
+      <trans-unit id="slide2_text2">
+        <source>Press the <x id="3" ctype="button"/> button when ready.</source>
+        <target state="new"></target>
+      </trans-unit>
+      <trans-unit id="slide3_text1">
+        <source>Thank you for completing the course!</source>
+        <target state="new"></target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
