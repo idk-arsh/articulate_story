@@ -1,293 +1,326 @@
 # Articulate Storyline Translation Automation
 
-🌐 **AI-powered translation tool for Articulate Storyline e-learning courses**
+## AI powered translation tool for Articulate Storyline e learning courses
 
-Automate course localization using OpenRouter (Claude, GPT-4, Gemini, etc.) while preserving formatting, variables, and course structure.
-
----
-
-## ✨ Features
-
-- 🤖 **AI Translation** - Multiple models via OpenRouter (Claude 3.5, GPT-4, GPT-3.5, Gemini)
-- 📄 **Dual Format Support** - XLIFF (1.2 & 2.0) and Word (.docx)
-- 🛡️ **Tag Protection** - Preserves formatting tags, variables, and placeholders
-- ✅ **Automated QA** - Detects missing tags, wrong numbers, glossary violations
-- 📚 **Glossary Support** - Enforce consistent terminology
-- 🎨 **Tone Control** - Professional, Formal, or Informal translations
-- 🌍 **RTL Support** - Arabic, Hebrew, and other right-to-left languages
-- 💰 **Cost Estimation** - See estimated costs before translating
-- 📊 **Progress Tracking** - Real-time translation progress
-- 📋 **QA Reports** - Downloadable CSV reports of translation issues
+Automate course localization for Articulate Storyline using OpenRouter models such as Claude, GPT 4, Gemini and others, while preserving formatting, variables, and course structure.
 
 ---
 
-## 🚀 Quick Start
+## Features
+
+* AI based translation using multiple models through OpenRouter
+* Support for XLIFF 1.2, XLIFF 2.0, and Word DOCX formats
+* Full preservation of formatting tags, variables, and placeholders
+* Automated quality checks for missing tags, incorrect numbers, and glossary violations
+* Glossary enforcement to maintain consistent terminology
+* Translation tone controls including Professional, Formal, and Informal
+* Right to left language support for Arabic, Hebrew, and similar languages
+* Pre translation cost estimation
+* Real time progress tracking during translation
+* Downloadable QA reports in CSV format
+
+---
+
+## Quick Start
 
 ### Prerequisites
-- Python 3.10 or higher
-- pip package manager
-- **OpenRouter API key** (supports multiple AI models)
-  - Get your key at: https://openrouter.ai/
-  - See [OPENROUTER_SETUP.md](OPENROUTER_SETUP.md) for detailed setup
+
+* Python 3.10 or later
+* pip package manager
+* OpenRouter API key with access to supported models
+
+  * Keys can be generated at [https://openrouter.ai/](https://openrouter.ai/)
+  * Refer to OPENROUTER_SETUP.md for detailed configuration instructions
 
 ### Installation
 
-1. **Clone or download this repository**
+1. Clone or download this repository
 
-2. **Create a virtual environment:**
+2. Create a virtual environment
+
 ```bash
 python -m venv venv
 
-# On Windows:
+# Windows
 venv\Scripts\activate
 
-# On Mac/Linux:
+# macOS or Linux
 source venv/bin/activate
 ```
 
-3. **Install dependencies:**
+3. Install dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
 
-4. **Set up environment variables:**
+4. Configure environment variables
+
 ```bash
-# Copy the example file
 cp .env.example .env
 
-# Edit .env and add your OpenRouter API key
+# Update the .env file with your OpenRouter API key
 # OPENROUTER_API_KEY=sk-or-v1-...
-# OPENAI_MODEL=openai/gpt-3.5-turbo  # or anthropic/claude-3.5-sonnet
+# OPENAI_MODEL=openai/gpt-3.5-turbo or anthropic/claude-3.5-sonnet
 ```
 
-5. **Run the application:**
+5. Run the application
+
 ```bash
 streamlit run app/ui/main_app.py
 ```
 
-The app will open in your browser at `http://localhost:8501`
+The application will be available at [http://localhost:8501](http://localhost:8501)
 
 ---
 
-## 📖 How to Use
+## How to Use
 
-### 1. Export from Storyline
-- Open your Storyline course
-- Go to **File → Translation → Export to XLIFF** (or Export for Translation)
-- Save the file
+### 1. Export from Articulate Storyline
+
+* Open the Storyline project
+* Navigate to File, then Translation, then Export to XLIFF or Export for Translation
+* Save the exported file locally
 
 ### 2. Translate
-- Upload the exported file to the web app
-- Select target language and tone
-- (Optional) Add glossary terms for consistent translation
-- Click "🚀 Start Translation"
-- Review QA issues if any
-- Download the translated file
 
-### 3. Import back to Storyline
-- In Storyline: **File → Translation → Import from XLIFF** (or Import)
-- Select the translated file
-- Review slides and adjust layout/alignment as needed
-- Publish your translated course!
+* Upload the exported file through the web interface
+* Select the target language and desired tone
+* Optionally add glossary terms to enforce consistent translations
+* Start the translation process
+* Review any QA findings
+* Download the translated output
+
+### 3. Import back into Storyline
+
+* In Storyline, go to File, then Translation, then Import from XLIFF or Import
+* Select the translated file
+* Review slides and adjust layout or alignment if required
+* Publish the localized course
 
 ---
 
-## 🧪 Testing
+## Testing
 
-Run the test suites to verify everything works:
+Run the following commands to validate individual components
 
 ```bash
-# Test XLIFF parser
+# Validate XLIFF parsing
 python tests/test_xliff_parser.py
 
-# Test Word parser
+# Validate Word document parsing
 python tests/test_word_parser.py
 
-# Test OpenRouter connection
+# Verify OpenRouter connectivity
 python test_openrouter_connection.py
 ```
 
 ---
 
-## 💡 Tips & Best Practices
+## Tips and Best Practices
 
-### Choosing a Model
-- **GPT-3.5 Turbo** - Fast, cheap, good for testing (~$0.03/course)
-- **Claude 3.5 Sonnet** - Best quality, recommended for production (~$0.15/course)
-- **GPT-4 Turbo** - High quality, more expensive (~$0.50/course)
-- **Gemini Pro** - Very cheap, good for large volumes (~$0.01/course)
+### Model Selection
 
-### Glossary Usage
-Format: `source term | target term`
+* GPT 3.5 Turbo provides fast and inexpensive translations suitable for testing
+* Claude 3.5 Sonnet offers the best overall translation quality and is recommended for production use
+* GPT 4 Turbo delivers high quality output at a higher cost
+* Gemini Pro is a cost effective option for large volume translations
+
+### Glossary Configuration
+
+Glossary entries follow the format
+
+```
+Source Term | Target Term
+```
+
+Example
+
 ```
 Employee Handbook | Manual del Empleado
 Product X | Product X
 HR Department | Departamento de RRHH
 ```
 
-Use `DO NOT TRANSLATE` for terms that should stay in English:
+To prevent translation of specific terms, use
+
 ```
 CompanyName Inc | DO NOT TRANSLATE
 ```
 
-### RTL Languages (Arabic, Hebrew)
-- Text will translate correctly
-- After import, manually adjust text alignment to right
-- Check player UI orientation
-- Test thoroughly before publishing
+### Right to Left Languages
 
-### What to Check After Import
-- ✅ Text fits in text boxes (no overflow)
-- ✅ Variables still work (`%Name%%` etc.)
-- ✅ Buttons and navigation work
-- ✅ Formatting preserved (bold, italic)
-- ✅ Numbers are correct
-- ✅ Glossary terms used consistently
+* Text content translates correctly for RTL languages
+* Manual alignment adjustments may be required after import
+* Player UI orientation should be reviewed
+* Full testing is recommended prior to publishing
+
+### Post Import Validation
+
+* Verify text does not overflow text containers
+* Confirm variables remain functional
+* Validate navigation and button behavior
+* Check formatting such as bold and italics
+* Confirm numerical values are accurate
+* Ensure glossary terms are applied consistently
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 storyline-translator/
 ├── app/
 │   ├── parsers/          # XLIFF and Word parsers
-│   ├── translation/      # GPT integration and tag management
-│   ├── qa/              # Quality assurance checks
-│   ├── ui/              # Streamlit interface
-│   └── data/            # Glossaries and resources
-├── tests/               # Test files and fixtures
-├── requirements.txt     # Python dependencies
-├── .env.example        # Environment template
-└── README.md           # This file
+│   ├── translation/      # Model integration and tag handling
+│   ├── qa/               # Quality assurance checks
+│   ├── ui/               # Streamlit interface
+│   └── data/             # Glossaries and reference data
+├── tests/                # Unit tests and fixtures
+├── requirements.txt      # Python dependencies
+├── .env.example          # Environment variable template
+└── README.md             # Project documentation
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-### "API key not found"
-- Make sure `.env` file exists in project root
-- Check that key starts with `sk-or-v1-`
-- Restart Streamlit after editing .env
+### API key not detected
 
-### "Failed to parse file"
-- Ensure file is exported from Storyline (not manually created)
-- Try both XLIFF and Word export options
-- Check file isn't corrupted
+* Confirm the .env file exists at the project root
+* Verify the key begins with sk-or-v1-
+* Restart Streamlit after updating environment variables
 
-### Translation fails
-- Verify you have credits in OpenRouter account
-- Try a smaller model (GPT-3.5) first
-- Check internet connection
+### File parsing errors
 
-### Import to Storyline fails
-- Verify `state="translated"` is set (our tool does this automatically)
-- Try re-exporting from Storyline
-- Ensure you're importing correct format (XLIFF vs Word)
+* Ensure the file was exported directly from Storyline
+* Attempt both XLIFF and Word export options
+* Verify the file is not corrupted
 
----
+### Translation failures
 
-## 🤝 Contributing
+* Confirm sufficient OpenRouter account credits
+* Test with a smaller model such as GPT 3.5
+* Verify network connectivity
 
-This is an internal tool, but improvements are welcome:
-1. Create feature branch
-2. Write tests
-3. Submit pull request
+### Import issues in Storyline
+
+* Confirm the translated file includes state="translated"
+* Re export the source file if needed
+* Ensure the import format matches the export format
 
 ---
 
-## 📚 Documentation
+## Contributing
 
-- [OpenRouter Setup Guide](OPENROUTER_SETUP.md) - Detailed API setup
-- [SOP Document](Articulate%20Storyline%20Translation%20Automation%20â%20SOP%20&%20Execution%20Plan.docx) - Full development plan
+This tool is intended for internal use. Contributions are welcome
 
----
-
-## 🎯 Roadmap
-
-### ✅ Completed (Sprint 1-2)
-- XLIFF parser (1.2 & 2.0)
-- Word document parser
-- OpenRouter integration
-- Tag protection system
-- Automated QA checks
-- Glossary support
-- Streamlit UI
-
-### 🚧 Planned Features
-- [ ] Translation memory (reuse past translations)
-- [ ] Batch processing (multiple files)
-- [ ] Progress save/resume
-- [ ] Cost tracking per project
-- [ ] User authentication
-- [ ] Admin dashboard
+1. Create a feature branch
+2. Add or update tests
+3. Submit a pull request for review
 
 ---
 
-## 📞 Support
+## Documentation
 
-For issues or questions:
-- Check [Troubleshooting](#-troubleshooting) section
-- Review [OpenRouter docs](https://openrouter.ai/docs)
-- Contact development team
+* OPENROUTER_SETUP.md provides detailed API configuration guidance
+* SOP document outlines the full development and execution plan
 
 ---
 
-## 📄 License
+## Roadmap
 
-Internal use only - not for public distribution
+### Completed
+
+* XLIFF 1.2 and 2.0 parsing
+* Word document parsing
+* OpenRouter model integration
+* Tag preservation system
+* Automated QA checks
+* Glossary support
+* Streamlit based user interface
+
+### Planned
+
+* Translation memory support
+* Batch processing for multiple files
+* Save and resume translation progress
+* Cost tracking at the project level
+* User authentication
+* Administrative dashboard
 
 ---
 
-## 🙏 Credits
+## Support
 
-Built with:
-- [Streamlit](https://streamlit.io/) - Web interface
-- [OpenRouter](https://openrouter.ai/) - AI model access
-- [lxml](https://lxml.de/) - XML parsing
-- [python-docx](https://python-docx.readthedocs.io/) - Word processing
+For issues or questions
+
+* Review the troubleshooting section
+* Consult OpenRouter documentation
+* Contact the internal development team
 
 ---
 
-**Version:** 1.0.0  
-**Last Updated:** December 2024
+## License
 
-## 🚀 Quick Start
+Internal use only. Not intended for public distribution
+
+---
+
+## Credits
+
+Built using
+
+* Streamlit for the web interface
+* OpenRouter for model access
+* lxml for XML processing
+* python docx for Word document handling
+
+---
+
+Version 1.0.0
+Last updated December 2024
+
+## Quick Start
 
 ### Prerequisites
-- Python 3.10 or higher
-- pip package manager
-- **OpenRouter API key** (supports multiple AI models: Claude, GPT-4, Gemini, etc.)
-  - Get your key at: https://openrouter.ai/
-  - See [OPENROUTER_SETUP.md](OPENROUTER_SETUP.md) for detailed setup instructions
+
+* Python 3.10 or later
+* pip package manager
+* OpenRouter API key with access to Claude, GPT, Gemini, and related models
+
+  * Keys available at [https://openrouter.ai/](https://openrouter.ai/)
+  * Refer to OPENROUTER_SETUP.md for setup instructions
 
 ### Installation
 
-1. **Clone or download this repository**
+1. Clone or download this repository
 
-2. **Create a virtual environment:**
+2. Create a virtual environment
+
 ```bash
 python -m venv venv
 
-# On Windows:
+# Windows
 venv\Scripts\activate
 
-# On Mac/Linux:
+# macOS or Linux
 source venv/bin/activate
 ```
 
-3. **Install dependencies:**
+3. Install dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
 
-4. **Set up environment variables:**
+4. Configure environment variables
+
 ```bash
-# Copy the example file
 cp .env.example .env
 
-# Edit .env and add your OpenRouter API key
+# Add your OpenRouter API key
 # OPENROUTER_API_KEY=sk-or-v1-...
 # OPENAI_MODEL=anthropic/claude-3.5-sonnet
 ```
@@ -298,96 +331,93 @@ cp .env.example .env
 streamlit run app/ui/main_app.py
 ```
 
-This will open the application in your browser at `http://localhost:8501`
+The application will be available at [http://localhost:8501](http://localhost:8501)
 
-## 🤖 Why OpenRouter?
+## Why OpenRouter
 
-OpenRouter provides access to multiple AI models through a single API:
-- **Anthropic Claude** (3.5 Sonnet) - Best for translation quality
-- **OpenAI GPT-4** - Great balance of quality and speed
-- **Google Gemini** - Cost-effective option
-- **Meta Llama** - Open source models
+OpenRouter provides access to multiple large language models through a single API
 
-You can switch between models in the UI without changing code!
+* Anthropic Claude 3.5 Sonnet for high quality translations
+* OpenAI GPT 4 for strong quality and performance balance
+* Google Gemini for cost sensitive workloads
+* Meta Llama for open source based models
 
-## 📋 Current Status (Sprint 1 - Week 1-2)
+Model selection can be changed directly in the UI without code changes
 
-### ✅ Completed Features
-- [x] XLIFF parser (supports 1.2 and 2.0)
-- [x] Tag protection system (preserves formatting)
-- [x] Basic Streamlit UI
-- [x] File upload and parsing
-- [x] Segment preview
+## Current Status
 
-### 🚧 In Progress
-- [ ] GPT translation integration (Sprint 2)
-- [ ] Glossary management (Sprint 2)
-- [ ] Word document parser (Sprint 2)
-- [ ] Automated QA checks (Sprint 3)
-- [ ] Progress tracking (Sprint 3)
+### Completed
 
-## 🧪 Testing
+* XLIFF 1.2 and 2.0 parsing
+* Tag preservation system
+* Initial Streamlit interface
+* File upload and parsing
+* Segment preview
 
-To test the parser with the sample file:
+### In Progress
+
+* Model based translation integration
+* Glossary management
+* Word document parsing
+* Automated QA checks
+* Progress tracking
+
+## Testing
+
+To test with the sample file
 
 1. Run the application
-2. Upload `tests/fixtures/sample.xliff`
-3. Click "Test Tag Manager" to see tag protection in action
+2. Upload tests/fixtures/sample.xliff
+3. Use the tag manager test option
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 storyline-translator/
 ├── app/
 │   ├── parsers/          # XLIFF and Word parsers
-│   ├── translation/      # GPT integration and tag management
-│   ├── qa/              # Quality assurance checks
-│   ├── ui/              # Streamlit interface
-│   └── data/            # Glossaries and resources
-├── tests/               # Test files and fixtures
-├── requirements.txt     # Python dependencies
-└── README.md           # This file
+│   ├── translation/      # Model integration and tag handling
+│   ├── qa/               # Quality assurance checks
+│   ├── ui/               # Streamlit interface
+│   └── data/             # Glossaries and resources
+├── tests/                # Test files and fixtures
+├── requirements.txt      # Python dependencies
+└── README.md             # Project documentation
 ```
 
-## 🔧 Development
+## Development
 
-### Adding New Features
+### Adding Features
 
-1. Create feature branch: `git checkout -b feature/name`
-2. Write code and tests
-3. Test locally with sample XLIFF files
-4. Create pull request for review
+1. Create a feature branch
+2. Implement changes and tests
+3. Validate locally using sample XLIFF files
+4. Submit a pull request for review
 
 ### Code Style
 
-- Use type hints where appropriate
-- Add docstrings to functions and classes
-- Keep functions focused and single-purpose
-- Follow PEP 8 style guidelines
+* Use type hints where appropriate
+* Include docstrings for public functions and classes
+* Keep functions small and focused
+* Follow PEP 8 guidelines
 
-## 📚 Documentation
+## Known Issues
 
-- See `SOP.md` for complete development plan and specifications
-- Each module has inline documentation
-- User guide coming in Sprint 5
+* Word document parsing is not fully implemented
+* Model based translation requires manual API key testing
+* UI polish is pending
 
-## 🐛 Known Issues
+## License
 
-- Word document parsing not yet implemented
-- GPT translation requires manual testing with API key
-- UI needs polish (planned for Sprint 4)
+Internal use only. Not for public distribution
 
-## 📝 License
+## Team
 
-Internal use only - not for public distribution
+* Developer Parser and Backend
+* Developer UI and Integration
+* QA Tester
+* Localization QA Tester
 
-## 👥 Team
+## Support
 
-- Developer 1: Parser & Backend
-- Developer 2: UI & Integration
-- Tester 1: QA & Testing
-- Tester 2: Localization QA
-
-## 📞 Support
-
-For issues or questions, contact the development team via internal channels.
+For questions or issues, contact the internal development team through established channels
