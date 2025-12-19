@@ -96,12 +96,12 @@ with st.sidebar:
         model = st.selectbox(
             "AI Model",
             [
-                "openai/gpt-3.5-turbo",
-                "anthropic/claude-3.5-sonnet",
+                "mistralai/devstral-2512:free",
+                "qwen/qwen3-coder:free",
                 "openai/gpt-oss-120b:free",
-                "openai/gpt-4-turbo", 
-                "google/gemini-pro",
-                "meta-llama/llama-3.1-70b-instruct"
+                "deepseek/deepseek-r1-0528:free", 
+                "google/gemma-3-4b-it:free",
+                "qwen/qwen3-235b-a22b:free"
             ],
             help="Choose the AI model for translation"
         )
