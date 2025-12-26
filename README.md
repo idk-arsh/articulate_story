@@ -1,6 +1,6 @@
 # Articulate Storyline Translation Automation
 
-## AI powered translation tool for Articulate Storyline e learning courses
+## AI powered translation tool for Articulate Storyline e-learning courses
 
 Automate course localization for Articulate Storyline using OpenRouter models such as Claude, GPT 4, Gemini and others, while preserving formatting, variables, and course structure.
 
