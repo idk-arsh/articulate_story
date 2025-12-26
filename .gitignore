@@ -11,9 +11,10 @@ TESTING_GUIDE.docx
 # Test scripts (if you really want to ignore them)
 test_idk.py
 test_openrouter_connection.py
-
+test_case.py
 # Translation files
 translated_German.xliff
 translated_Spanish.xliff
 translated_Spanish_1.xliff
 translated_Spanish_3.xliff
+translated_Japanese.xliff

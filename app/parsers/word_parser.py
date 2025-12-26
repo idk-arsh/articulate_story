@@ -1,6 +1,6 @@
 """
 Word Document Parser for Articulate Storyline Translation
-Handles .docx translation export format
+Handles .docx translation export format with MULTIPLE TABLES
 """
 
 from docx import Document
@@ -13,14 +13,16 @@ class WordSegment:
     """Represents a translatable segment from Word document"""
     
     def __init__(self, row_index: int, id_text: str, source_text: str, 
-                 target_text: str = "", context: str = ""):
+                 target_text: str = "", context: str = "", table_index: int = 0):
         self.row_index = row_index
-        self.id_text = id_text  # ID or reference column
+        self.table_index = table_index  # NEW: Track which table this segment belongs to
+        self.id_text = id_text
         self.source_text = source_text
         self.target_text = target_text
+        self.translation = target_text
         self.context = context
-        self.source_cell = None  # Reference to source cell
-        self.target_cell = None  # Reference to target cell
+        self.source_cell = None
+        self.target_cell = None
 
 
 class WordParser:
@@ -30,89 +32,99 @@ class WordParser:
         self.file_path = file_path
         self.doc = None
         self.segments: List[WordSegment] = []
-        self.source_col_index = None
-        self.target_col_index = None
-        self.id_col_index = None
+        self.table_mappings = []  # Store column mappings for each table
         
     def parse(self) -> List[WordSegment]:
-        """Parse Word document and extract segments"""
+        """Parse Word document and extract segments from ALL tables"""
         try:
             self.doc = Document(self.file_path)
             
-            # Find the main translation table
-            table = self._find_translation_table()
+            # Find ALL translation tables
+            tables = self._find_all_translation_tables()
             
-            if not table:
-                raise ValueError("No translation table found in document")
+            if not tables:
+                raise ValueError("No translation tables found in document")
             
-            # Identify column structure
-            self._identify_columns(table)
+            print(f"Found {len(tables)} translation tables")
             
-            # Extract segments
-            self.segments = self._extract_segments(table)
+            # Extract segments from all tables
+            all_segments = []
+            for table_idx, table in enumerate(tables):
+                # Identify column structure for this table
+                col_mapping = self._identify_columns(table, table_idx)
+                self.table_mappings.append(col_mapping)
+                
+                # Extract segments from this table
+                segments = self._extract_segments(table, table_idx, col_mapping)
+                all_segments.extend(segments)
+                print(f"Table {table_idx}: Extracted {len(segments)} segments")
             
+            self.segments = all_segments
             return self.segments
             
         except Exception as e:
             raise RuntimeError(f"Failed to parse Word document: {str(e)}")
     
-    def _find_translation_table(self):
-        """Find the main translation table in the document"""
-        # Look for tables with translation structure
+    def _find_all_translation_tables(self):
+        """Find ALL translation tables in the document"""
+        translation_tables = []
+        
         for table in self.doc.tables:
-            if len(table.rows) > 1 and len(table.columns) >= 2:
+            if len(table.rows) > 1 and len(table.columns) >= 3:
                 # Check if first row looks like headers
                 first_row_text = ' '.join(cell.text.lower() for cell in table.rows[0].cells)
                 
-                # Common header patterns
+                # Look for translation table indicators
                 if any(keyword in first_row_text for keyword in 
-                       ['original', 'translation', 'source', 'target', 'text']):
-                    return table
+                       ['source text', 'translation', 'type', 'id']):
+                    translation_tables.append(table)
         
-        # If no clear header, return first table with multiple rows
-        if self.doc.tables and len(self.doc.tables[0].rows) > 1:
-            return self.doc.tables[0]
-        
-        return None
+        return translation_tables
     
-    def _identify_columns(self, table):
-        """Identify which columns contain source, target, and ID"""
+    def _identify_columns(self, table, table_idx):
+        """Identify which columns contain source, target, and ID for a specific table"""
         if len(table.rows) == 0:
-            raise ValueError("Table has no rows")
+            raise ValueError(f"Table {table_idx} has no rows")
         
         header_row = table.rows[0]
+        col_mapping = {
+            'id': None,
+            'source': None,
+            'target': None
+        }
         
         # Check header text to identify columns
         for i, cell in enumerate(header_row.cells):
             cell_text = cell.text.lower().strip()
             
             # Identify ID column
-            if any(keyword in cell_text for keyword in ['id', '#', 'number', 'ref']):
-                self.id_col_index = i
+            if 'id' in cell_text and '🔒' in cell_text:
+                col_mapping['id'] = i
             
             # Identify source column
-            elif any(keyword in cell_text for keyword in 
-                     ['original', 'source', 'english', 'text']):
-                self.source_col_index = i
+            elif 'source text' in cell_text:
+                col_mapping['source'] = i
             
             # Identify target/translation column
-            elif any(keyword in cell_text for keyword in 
-                     ['translation', 'target', 'translated']):
-                self.target_col_index = i
+            elif 'translation' in cell_text:
+                col_mapping['target'] = i
         
-        # If not found by headers, use default positions
-        if self.source_col_index is None:
-            # Assume source is first text column after ID (if exists)
-            self.source_col_index = 1 if self.id_col_index == 0 else 0
+        # Fallback: Use column positions if headers unclear
+        if col_mapping['source'] is None:
+            # Source is usually second-to-last
+            col_mapping['source'] = max(0, len(header_row.cells) - 2)
         
-        if self.target_col_index is None:
-            # Assume target is last column or next to source
-            self.target_col_index = len(header_row.cells) - 1
+        if col_mapping['target'] is None:
+            # Target is usually last
+            col_mapping['target'] = len(header_row.cells) - 1
         
-        print(f"Column mapping: ID={self.id_col_index}, Source={self.source_col_index}, Target={self.target_col_index}")
+        print(f"Table {table_idx} columns: ID={col_mapping['id']}, "
+              f"Source={col_mapping['source']}, Target={col_mapping['target']}")
+        
+        return col_mapping
     
-    def _extract_segments(self, table) -> List[WordSegment]:
-        """Extract text segments from table"""
+    def _extract_segments(self, table, table_idx, col_mapping) -> List[WordSegment]:
+        """Extract text segments from a specific table"""
         segments = []
         
         # Skip header row (row 0)
@@ -122,13 +134,13 @@ class WordParser:
                 
                 # Get ID if column exists
                 id_text = ""
-                if self.id_col_index is not None and self.id_col_index < len(cells):
-                    id_text = cells[self.id_col_index].text.strip()
+                if col_mapping['id'] is not None and col_mapping['id'] < len(cells):
+                    id_text = cells[col_mapping['id']].text.strip()
                 
                 # Get source text
-                if self.source_col_index >= len(cells):
+                if col_mapping['source'] >= len(cells):
                     continue
-                source_cell = cells[self.source_col_index]
+                source_cell = cells[col_mapping['source']]
                 source_text = source_cell.text.strip()
                 
                 # Skip empty rows
@@ -138,17 +150,18 @@ class WordParser:
                 # Get target text (may be empty)
                 target_text = ""
                 target_cell = None
-                if self.target_col_index < len(cells):
-                    target_cell = cells[self.target_col_index]
+                if col_mapping['target'] < len(cells):
+                    target_cell = cells[col_mapping['target']]
                     target_text = target_cell.text.strip()
                 
                 # Create segment
                 segment = WordSegment(
                     row_index=row_idx,
-                    id_text=id_text or f"row_{row_idx}",
+                    table_index=table_idx,  # Track which table
+                    id_text=id_text or f"table{table_idx}_row{row_idx}",
                     source_text=source_text,
                     target_text=target_text,
-                    context=f"Row {row_idx}"
+                    context=f"Table {table_idx}, Row {row_idx}"
                 )
                 
                 # Store cell references for reconstruction
@@ -158,64 +171,93 @@ class WordParser:
                 segments.append(segment)
                 
             except Exception as e:
-                print(f"Warning: Failed to parse row {row_idx}: {e}")
+                print(f"Warning: Failed to parse table {table_idx}, row {row_idx}: {e}")
                 continue
         
         return segments
     
     def reconstruct(self, translated_segments: List[WordSegment], 
                    output_path: str) -> bool:
-        """Reconstruct Word document with translations"""
+        """Reconstruct Word document with translations in ALL tables"""
         try:
             if not self.doc:
                 raise ValueError("No document loaded. Call parse() first.")
             
-            # Find the table again
-            table = self._find_translation_table()
+            # Find all tables again
+            tables = self._find_all_translation_tables()
             
-            if not table:
-                raise ValueError("Translation table not found")
+            if not tables:
+                raise ValueError("Translation tables not found")
             
-            # Update each segment's target cell
+            # Group segments by table
+            segments_by_table = {}
             for segment in translated_segments:
-                if segment.row_index > len(table.rows) - 1:
-                    print(f"Warning: Row {segment.row_index} out of range")
+                table_idx = segment.table_index
+                if table_idx not in segments_by_table:
+                    segments_by_table[table_idx] = []
+                segments_by_table[table_idx].append(segment)
+            
+            # Update each table
+            for table_idx, table in enumerate(tables):
+                if table_idx not in segments_by_table:
+                    print(f"No translations for table {table_idx}")
                     continue
                 
-                # Get the actual row (accounting for 0-indexing and header)
-                row = table.rows[segment.row_index]
+                col_mapping = self.table_mappings[table_idx]
+                segments = segments_by_table[table_idx]
                 
-                if self.target_col_index >= len(row.cells):
-                    print(f"Warning: Target column not found in row {segment.row_index}")
-                    continue
+                print(f"Updating table {table_idx} with {len(segments)} translations")
                 
-                # Get target cell
-                target_cell = row.cells[self.target_col_index]
-                
-                # Clear existing content
-                target_cell.text = ""
-                
-                # Add translated text
-                # Preserve basic formatting from source if possible
-                if segment.target_text:
-                    paragraph = target_cell.paragraphs[0] if target_cell.paragraphs else target_cell.add_paragraph()
-                    paragraph.text = segment.target_text
+                # Update each segment in this table
+                for segment in segments:
+                    if segment.row_index > len(table.rows) - 1:
+                        print(f"Warning: Row {segment.row_index} out of range in table {table_idx}")
+                        continue
                     
-                    # Optional: Copy formatting from source cell
+                    # Get the actual row
+                    row = table.rows[segment.row_index]
+                    
+                    target_col = col_mapping['target']
+                    if target_col >= len(row.cells):
+                        print(f"Warning: Target column not found in table {table_idx}, row {segment.row_index}")
+                        continue
+                    
+                    # Get target cell
+                    target_cell = row.cells[target_col]
+                    
+                    # Get the translation
+                    translation = getattr(segment, 'target_text', 
+                                        getattr(segment, 'translation', ''))
+                    
+                    if not translation:
+                        continue
+                    
+                    # Clear existing content
+                    for paragraph in target_cell.paragraphs:
+                        paragraph.clear()
+                    
+                    # Add translated text
+                    if target_cell.paragraphs:
+                        paragraph = target_cell.paragraphs[0]
+                    else:
+                        paragraph = target_cell.add_paragraph()
+                    
+                    paragraph.text = translation
+                    
+                    # Copy formatting from source cell
                     if segment.source_cell and segment.source_cell.paragraphs:
                         source_para = segment.source_cell.paragraphs[0]
-                        if source_para.runs:
-                            # Copy font properties from first run
+                        if source_para.runs and paragraph.runs:
                             source_run = source_para.runs[0]
-                            if paragraph.runs:
-                                target_run = paragraph.runs[0]
-                                if source_run.bold:
-                                    target_run.bold = source_run.bold
-                                if source_run.italic:
-                                    target_run.italic = source_run.italic
+                            target_run = paragraph.runs[0]
+                            if source_run.bold:
+                                target_run.bold = source_run.bold
+                            if source_run.italic:
+                                target_run.italic = source_run.italic
             
             # Save document
             self.doc.save(output_path)
+            print(f"Document saved to {output_path}")
             return True
             
         except Exception as e:
@@ -233,16 +275,18 @@ class WordParser:
             if not doc.tables:
                 return False
             
-            # Check first table for translation-like structure
-            table = doc.tables[0]
-            if len(table.rows) < 2 or len(table.columns) < 2:
-                return False
+            # Check if any table looks like a translation table
+            for table in doc.tables:
+                if len(table.rows) < 2 or len(table.columns) < 2:
+                    continue
+                
+                header_text = ' '.join(cell.text.lower() for cell in table.rows[0].cells)
+                
+                if any(keyword in header_text for keyword in 
+                      ['translation', 'source text', 'type']):
+                    return True
             
-            # Check header row for translation keywords
-            header_text = ' '.join(cell.text.lower() for cell in table.rows[0].cells)
-            
-            return any(keyword in header_text for keyword in 
-                      ['translation', 'original', 'source', 'target'])
+            return False
             
         except:
             return False

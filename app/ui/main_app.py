@@ -178,7 +178,6 @@ with col1:
             with open(sample_path, 'rb') as f:
                 sample_data = f.read()
             
-            # Create a proper fake uploaded file object
             class FakeUploadedFile:
                 def __init__(self, name, data):
                     self.name = name
@@ -205,16 +204,13 @@ with col1:
     if uploaded_file:
         st.success(f"✅ File uploaded: {uploaded_file.name}")
         
-        # Display file info
         file_size = len(uploaded_file.getvalue())
         st.info(f"📊 File size: {file_size:,} bytes ({file_size/1024:.1f} KB)")
         
-        # Determine file type
         file_ext = Path(uploaded_file.name).suffix.lower()
         
         # Reset previous translation if new file uploaded
         if 'last_uploaded_file' not in st.session_state or st.session_state['last_uploaded_file'] != uploaded_file.name:
-            # Clear previous translation
             for key in ['translated_file', 'translated_filename', 'qa_issues', 'qa_summary']:
                 if key in st.session_state:
                     del st.session_state[key]
@@ -223,35 +219,32 @@ with col1:
         if file_ext in ['.xliff', '.xlf']:
             st.write("**File type:** XLIFF")
             
-            # Try to parse the file
             with st.spinner("Parsing XLIFF file..."):
                 try:
-                    # Save temporarily using tempfile
                     with tempfile.NamedTemporaryFile(mode='wb', suffix='.xliff', delete=False) as tmp:
                         tmp.write(uploaded_file.getvalue())
                         temp_path = tmp.name
                     
-                    # Parse
                     parser = XLIFFParser(temp_path)
                     segments = parser.parse()
                     
                     st.success(f"✅ Parsed successfully! Found {len(segments)} text segments.")
                     
-                    # Show sample segments
                     with st.expander("📝 Preview Segments (first 5)"):
                         for i, seg in enumerate(segments[:5], 1):
-                            st.markdown(f"**Segment {i}** (ID: {seg.id})")
-                            st.code(seg.source_text[:200] + "..." if len(seg.source_text) > 200 else seg.source_text)
+                            seg_id = getattr(seg, 'id', getattr(seg, 'id_text', f'segment_{i}'))
+                            seg_text = getattr(seg, 'source_text', getattr(seg, 'text', ''))
+                            st.markdown(f"**Segment {i}** (ID: {seg_id})")
+                            st.code(seg_text[:200] + "..." if len(seg_text) > 200 else seg_text)
                             st.divider()
                     
-                    # Store in session state for translation
                     st.session_state['parser'] = parser
                     st.session_state['segments'] = segments
                     st.session_state['temp_path'] = temp_path
+                    st.session_state['file_type'] = 'xliff'
                     
-                    # Estimate translation cost
-                    total_chars = sum(len(seg.source_text) for seg in segments)
-                    est_tokens = total_chars * 1.3  # Rough estimate: 1 char ≈ 1.3 tokens
+                    total_chars = sum(len(getattr(seg, 'source_text', getattr(seg, 'text', ''))) for seg in segments)
+                    est_tokens = total_chars * 1.3
                     
                     with st.expander("💰 Cost Estimate"):
                         st.markdown(f"""
@@ -264,9 +257,6 @@ with col1:
                         - GPT-3.5 Turbo: ~${(est_tokens/1000 * 0.0015):.3f}
                         - GPT-4 Turbo: ~${(est_tokens/1000 * 0.01):.3f}
                         - Claude 3.5 Sonnet: ~${(est_tokens/1000 * 0.003):.3f}
-                        - Gemini Pro: ~${(est_tokens/1000 * 0.00025):.3f}
-                        
-                        *Estimates only - actual cost may vary*
                         """)
                     
                 except Exception as e:
@@ -276,34 +266,30 @@ with col1:
         elif file_ext == '.docx':
             st.write("**File type:** Word Document")
             
-            # Try to parse the Word file
             with st.spinner("Parsing Word document..."):
                 try:
                     from app.parsers.word_parser import WordParser
                     
-                    # Save temporarily
                     with tempfile.NamedTemporaryFile(mode='wb', suffix='.docx', delete=False) as tmp:
                         tmp.write(uploaded_file.getvalue())
                         temp_path = tmp.name
                     
-                    # Check if it's a translation format
                     if not WordParser.is_word_translation_format(temp_path):
                         st.warning("⚠️ This doesn't appear to be a Storyline translation export. Attempting to parse anyway...")
                     
-                    # Parse
                     parser = WordParser(temp_path)
                     segments = parser.parse()
                     
                     st.success(f"✅ Parsed successfully! Found {len(segments)} text segments.")
                     
-                    # Show sample segments
                     with st.expander("📝 Preview Segments (first 5)"):
                         for i, seg in enumerate(segments[:5], 1):
-                            st.markdown(f"**Segment {i}** (ID: {seg.id_text})")
-                            st.code(seg.source_text[:200] + "..." if len(seg.source_text) > 200 else seg.source_text)
+                            seg_id = getattr(seg, 'id', getattr(seg, 'id_text', f'segment_{i}'))
+                            seg_text = getattr(seg, 'source_text', getattr(seg, 'text', ''))
+                            st.markdown(f"**Segment {i}** (ID: {seg_id})")
+                            st.code(seg_text[:200] + "..." if len(seg_text) > 200 else seg_text)
                             st.divider()
                     
-                    # Store in session state for translation
                     st.session_state['parser'] = parser
                     st.session_state['segments'] = segments
                     st.session_state['temp_path'] = temp_path
@@ -321,16 +307,24 @@ with col2:
     
     if uploaded_file and 'segments' in st.session_state:
         
-        # Translation button
+        # Batch translation toggle
+        use_batch = st.checkbox(
+            "🚀 Use Batch Translation (10x faster, fewer API calls)", 
+            value=True,
+            help="Translates 10 segments at once instead of one-by-one. Reduces API calls significantly!"
+        )
+        
+        total_segments = len(st.session_state['segments'])
+        expected_calls = (total_segments + 9) // 10 if use_batch else total_segments
+        st.caption(f"Expected API calls: {expected_calls}")
+        
         if st.button("🚀 Start Translation", type="primary", use_container_width=True):
             
             if not api_key_set:
                 st.error("⚠️ OpenRouter API key not configured! Please add it to your .env file.")
             else:
-                # Import translator
                 from app.translation.gpt_translator import GPTTranslator
                 
-                # Get settings
                 tone_map = {
                     "Professional (default)": "Professional",
                     "Formal Polite": "Formal",
@@ -338,7 +332,6 @@ with col2:
                 }
                 selected_tone = tone_map.get(tone, "Professional")
                 
-                # Initialize translator
                 with st.spinner("Initializing translator..."):
                     try:
                         translator = GPTTranslator(model=model if 'model' in locals() else None)
@@ -347,38 +340,82 @@ with col2:
                         st.error(f"Failed to initialize translator: {e}")
                         st.stop()
                 
-                # Progress tracking
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
-                # Translate segments
+                segments = st.session_state['segments']
+                total = len(segments)
                 results = []
                 failed_count = 0
                 
-                segments = st.session_state['segments']
-                total = len(segments)
-                
-                for i, seg in enumerate(segments):
-                    # Update progress
-                    progress = (i + 1) / total
-                    progress_bar.progress(progress)
-                    status_text.text(f"Translating segment {i+1}/{total}: {seg.id}")
+                if use_batch:
+                    # ── BATCH MODE ───────────────────────────────────────────────────────
+                    st.info(f"🚀 Batch mode activated: {total} segments in ~{expected_calls} API calls")
                     
-                    # Translate
-                    result = translator.translate_segment(
-                        text=seg.source_text,
+                    def progress_callback(current_batch, total_batches):
+                        progress = current_batch / total_batches
+                        progress_bar.progress(progress)
+                        status_text.text(f"Processing batch {current_batch}/{total_batches} "
+                                       f"({total} segments total)")
+                    
+                    try:
+                        batch_results = translator.translate_segments(
+                        segments=segments,
                         target_language=target_lang,
+                        source_language="English",
                         tone=selected_tone,
-                        glossary=glossary if glossary else None
-                    )
-                    
-                    if result['success']:
-                        seg.target_text = result['translated_text']
-                    else:
-                        failed_count += 1
-                        st.warning(f"⚠️ Segment {seg.id} failed: {result.get('error', 'Unknown error')}")
-                    
-                    results.append(result)
+                        glossary=glossary if glossary else None,
+                        use_batch=True,  # ← This is the missing piece
+                        batch_size=10,
+                        progress_callback=progress_callback
+                        )
+                        
+                        # Apply results to segments
+                        for seg, result in zip(segments, batch_results):
+                            if result.get('success', False):
+                                if hasattr(seg, 'target_text'):
+                                    seg.target_text = result['translated_text']
+                                elif hasattr(seg, 'translation'):
+                                    seg.translation = result['translated_text']
+                            else:
+                                failed_count += 1
+                                seg_id = getattr(seg, 'id', getattr(seg, 'id_text', 'unknown'))
+                                st.warning(f"⚠️ Segment {seg_id} failed: {result.get('error', 'Unknown error')}")
+                        
+                        results = batch_results
+                        
+                    except Exception as e:
+                        st.error(f"Batch translation failed: {str(e)}")
+                        failed_count = total
+                
+                else:
+                    # ── SINGLE MODE (original) ───────────────────────────────────────
+                    for i, seg in enumerate(segments):
+                        progress = (i + 1) / total
+                        progress_bar.progress(progress)
+                        
+                        seg_id = getattr(seg, 'id', getattr(seg, 'id_text', f'segment_{i+1}'))
+                        status_text.text(f"Translating segment {i+1}/{total}: {seg_id}")
+                        
+                        source_text = getattr(seg, 'source_text', getattr(seg, 'text', ''))
+                        
+                        result = translator.translate_segment(
+                            text=source_text,
+                            target_language=target_lang,
+                            tone=selected_tone,
+                            glossary=glossary if glossary else None
+                        )
+                        
+                        if result['success']:
+                            if hasattr(seg, 'target_text'):
+                                seg.target_text = result['translated_text']
+                            elif hasattr(seg, 'translation'):
+                                seg.translation = result['translated_text']
+                        else:
+                            failed_count += 1
+                            st.warning(f"⚠️ Segment {seg_id} failed: {result.get('error', 'Unknown error')}")
+                        
+                        results.append(result)
                 
                 # Translation complete
                 status_text.empty()
@@ -400,7 +437,6 @@ with col2:
                     st.session_state['qa_issues'] = issues
                     st.session_state['qa_summary'] = summary
                     
-                    # Show QA summary
                     if summary['critical'] > 0:
                         st.error(f"🔴 {summary['critical']} Critical issues found!")
                     if summary['major'] > 0:
@@ -411,16 +447,13 @@ with col2:
                     if summary['total'] == 0:
                         st.success("✅ No issues found!")
                     else:
-                        # Show issues in expandable section
                         with st.expander(f"🔍 View {summary['total']} QA Issues", expanded=summary['critical'] > 0):
-                            # Group by severity
                             for severity in ['Critical', 'Major', 'Minor']:
                                 severity_issues = [i for i in issues if i.severity == severity]
                                 if severity_issues:
                                     icon = "🔴" if severity == "Critical" else "🟠" if severity == "Major" else "🔵"
                                     st.markdown(f"### {icon} {severity} ({len(severity_issues)})")
-                                    
-                                    for issue in severity_issues[:10]:  # Show first 10
+                                    for issue in severity_issues[:10]:
                                         st.markdown(f"""
                                         **{issue.category}** - Segment: `{issue.segment_id}`  
                                         {issue.description}
@@ -434,16 +467,14 @@ with col2:
                                                 st.caption("Target:")
                                                 st.code(issue.target_text[:100], language=None)
                                         st.divider()
-                                    
                                     if len(severity_issues) > 10:
-                                        st.info(f"+ {len(severity_issues) - 10} more issues (download CSV for full list)")
+                                        st.info(f"+ {len(severity_issues) - 10} more issues")
                 
-                # Reconstruct file (XLIFF or Word)
+                # Reconstruct file
                 with st.spinner("Building translated file..."):
                     parser = st.session_state['parser']
                     file_type = st.session_state.get('file_type', 'xliff')
                     
-                    # Create temp file for output
                     suffix = '.docx' if file_type == 'word' else '.xliff'
                     with tempfile.NamedTemporaryFile(mode='wb', suffix=suffix, delete=False) as tmp:
                         output_path = tmp.name
@@ -451,22 +482,18 @@ with col2:
                     success = parser.reconstruct(segments, output_path)
                     
                     if success:
-                        # Read file for download
                         with open(output_path, 'rb') as f:
                             translated_bytes = f.read()
                         
-                        # Cleanup temp file
                         try:
                             os.unlink(output_path)
                         except:
                             pass
                         
-                        # Set download filename based on type
                         extension = 'docx' if file_type == 'word' else 'xliff'
                         st.session_state['translated_file'] = translated_bytes
                         st.session_state['translated_filename'] = f"translated_{target_lang}.{extension}"
                         
-                        # Show stats
                         stats = translator.get_stats()
                         st.info(f"""
                         **Translation Statistics:**
@@ -475,19 +502,18 @@ with col2:
                         - Estimated cost: {stats['estimated_cost']}
                         """)
                     else:
-                        st.error("Failed to reconstruct XLIFF file")
+                        st.error("Failed to reconstruct file")
         
-        # Download button (if translation exists)
+        # Download buttons
         if 'translated_file' in st.session_state:
             st.download_button(
                 label="📥 Download Translated File",
                 data=st.session_state['translated_file'],
                 file_name=st.session_state['translated_filename'],
-                mime="application/xml",
+                mime="application/xml" if st.session_state.get('file_type') == 'xliff' else "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 use_container_width=True
             )
             
-            # QA Report download
             if 'qa_issues' in st.session_state:
                 import pandas as pd
                 from app.qa.qa_rules import QAChecker
@@ -510,27 +536,26 @@ with col2:
         
         st.divider()
         
-        st.divider()
-        
         # Test tag protection
         st.subheader("🧪 Test Tag Protection")
         
         if st.button("Test Tag Manager", use_container_width=True):
             with st.spinner("Testing tag protection..."):
-                # Take first segment with tags
                 test_segment = None
                 for seg in st.session_state['segments']:
-                    if '<' in seg.source_text or '%' in seg.source_text:
+                    seg_text = getattr(seg, 'source_text', getattr(seg, 'text', ''))
+                    if '<' in seg_text or '%' in seg_text:
                         test_segment = seg
                         break
                 
                 if test_segment:
-                    st.write("**Original text:**")
-                    st.code(test_segment.source_text)
+                    seg_text = getattr(test_segment, 'source_text', getattr(test_segment, 'text', ''))
                     
-                    # Protect tags
+                    st.write("**Original text:**")
+                    st.code(seg_text)
+                    
                     manager = TagManager()
-                    protected, mapping = manager.protect_tags(test_segment.source_text)
+                    protected, mapping = manager.protect_tags(seg_text)
                     
                     st.write("**Protected text (safe for GPT):**")
                     st.code(protected)
@@ -538,12 +563,11 @@ with col2:
                     st.write("**Tag mapping:**")
                     st.json(mapping)
                     
-                    # Simulate restoration
                     restored = manager.restore_tags(protected, mapping)
                     st.write("**Restored text:**")
                     st.code(restored)
                     
-                    if restored == test_segment.source_text:
+                    if restored == seg_text:
                         st.success("✅ Tag protection/restoration works perfectly!")
                     else:
                         st.error("❌ Restoration mismatch!")
