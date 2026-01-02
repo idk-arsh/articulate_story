@@ -137,36 +137,36 @@ class WordParser:
                 if col_mapping['id'] is not None and col_mapping['id'] < len(cells):
                     id_text = cells[col_mapping['id']].text.strip()
                 
-                # Get source text
-                if col_mapping['source'] >= len(cells):
-                    continue
-                source_cell = cells[col_mapping['source']]
-                source_text = source_cell.text.strip()
-                
-                # Skip empty rows
-                if not source_text:
-                    continue
-                
-                # Get target text (may be empty)
-                target_text = ""
+                # Get the Translation column text (this is what we translate)
                 target_cell = None
+                text_to_translate = ""
+                
                 if col_mapping['target'] < len(cells):
                     target_cell = cells[col_mapping['target']]
-                    target_text = target_cell.text.strip()
+                    text_to_translate = target_cell.text.strip()
                 
-                # Create segment
+                # Skip empty rows
+                if not text_to_translate:
+                    continue
+                
+                # Get source cell for reference
+                source_cell = None
+                if col_mapping['source'] < len(cells):
+                    source_cell = cells[col_mapping['source']]
+                
+                # Create segment using Translation column as input
                 segment = WordSegment(
                     row_index=row_idx,
-                    table_index=table_idx,  # Track which table
+                    table_index=table_idx,
                     id_text=id_text or f"table{table_idx}_row{row_idx}",
-                    source_text=source_text,
-                    target_text=target_text,
-                    context=f"Table {table_idx}, Row {row_idx}"
+                    source_text=text_to_translate,  # Translate from Translation column
+                    target_text="",  # Will be filled with translated result
+                    context=f"Table {table_idx}, Row {row_idx}, ID {id_text}"
                 )
                 
                 # Store cell references for reconstruction
                 segment.source_cell = source_cell
-                segment.target_cell = target_cell
+                segment.target_cell = target_cell  # Write translation back here
                 
                 segments.append(segment)
                 

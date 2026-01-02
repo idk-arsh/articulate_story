@@ -1,12 +1,13 @@
 """
 GPT Translator using OpenRouter API
-NOW WITH BATCH TRANSLATION SUPPORT!
+NOW WITH BATCH TRANSLATION SUPPORT! (Fixed & Cleaned)
 """
 
 import os
 import time
 import json
 import requests
+import re
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
@@ -62,7 +63,16 @@ class GPTTranslator:
     ) -> Dict:
         """Translate a single text segment."""
         
-        protected_text, mapping = self.tag_manager.protect_tags(text)
+        # Extract and save leading number
+        match = re.match(r'^(\d+)\s*', text)
+        if match:
+            leading_num = match.group(0)
+            text_without_num = text[len(leading_num):]
+        else:
+            leading_num = ""
+            text_without_num = text
+        
+        protected_text, mapping = self.tag_manager.protect_tags(text_without_num)
         system_prompt = self._build_system_prompt(tone)
         user_prompt = self._build_user_prompt(
             protected_text, target_language, source_language, glossary, context
@@ -96,6 +106,10 @@ class GPTTranslator:
                 translated_protected = data['choices'][0]['message']['content'].strip()
                 translated_protected = self._clean_translation_output(translated_protected)
                 translated_text = self.tag_manager.restore_tags(translated_protected, mapping)
+                
+                # Re-add leading number
+                if leading_num:
+                    translated_text = leading_num + translated_text
                 
                 tokens_used = data.get('usage', {}).get('total_tokens', 0)
                 self.total_tokens_used += tokens_used
@@ -144,7 +158,7 @@ class GPTTranslator:
                         'error': str(e)
                     }
     
-    # ========== NEW: BATCH TRANSLATION ==========
+    # ========== BATCH TRANSLATION ==========
     
     def translate_segments_batch(
         self,
@@ -157,55 +171,37 @@ class GPTTranslator:
         progress_callback: Optional[callable] = None
     ) -> List[Dict]:
         """
-        🚀 NEW: Translate multiple segments in batches (10x faster!)
-        
-        Args:
-            segments: List of segments to translate
-            target_language: Target language
-            source_language: Source language
-            glossary: Glossary dictionary
-            tone: Translation tone
-            batch_size: Number of segments per batch (default 10)
-            progress_callback: Optional callback(current, total) for progress
-            
-        Returns:
-            List of translation results
+        Translate multiple segments in batches (much faster!)
         """
         
         results = []
         total = len(segments)
         total_batches = (total + batch_size - 1) // batch_size
         
-        print(f"\n🚀 Batch translation: {total} segments in {total_batches} batches of {batch_size}")
+        print(f"\nBatch translation: {total} segments in {total_batches} batches of {batch_size}")
         
         for batch_idx in range(0, total, batch_size):
             batch = segments[batch_idx:batch_idx + batch_size]
             batch_num = (batch_idx // batch_size) + 1
             
-            print(f"\n📦 Processing batch {batch_num}/{total_batches} ({len(batch)} segments)...")
+            print(f"\nProcessing batch {batch_num}/{total_batches} ({len(batch)} segments)...")
             
             try:
-                # Translate entire batch in one call
                 batch_results = self._translate_batch(
                     batch, target_language, source_language, glossary, tone
                 )
                 
                 results.extend(batch_results)
                 
-                # Update progress
-                if progress_callback:
+                if progress_callback and batch_num % 2 == 0:
                     current = min(batch_idx + batch_size, total)
                     progress_callback(current, total)
                 
-                print(f"✅ Batch {batch_num} completed!")
-                
-                # Small delay between batches
-                time.sleep(0.5)
+                print(f"Batch {batch_num} completed!")
                 
             except Exception as e:
-                print(f"❌ Batch {batch_num} failed: {e}")
+                print(f"Batch {batch_num} failed: {e}")
                 
-                # Fallback: Keep original text
                 for segment in batch:
                     segment.target_text = segment.source_text
                     segment.translation = segment.source_text
@@ -229,22 +225,35 @@ class GPTTranslator:
     ) -> List[Dict]:
         """Translate a batch of segments in one API call"""
         
-        # Protect tags for all segments
+        # Protect tags and preserve leading numbers
         protected_batch = []
         mappings = []
+        leading_numbers = []
         
         for segment in batch:
-            protected_text, mapping = self.tag_manager.protect_tags(segment.source_text)
+            # Extract leading number
+            match = re.match(r'^(\d+)\s*', segment.source_text)
+            if match:
+                leading_num = match.group(0)
+                text_without_num = segment.source_text[len(leading_num):]
+                leading_numbers.append(leading_num)
+            else:
+                leading_num = ""
+                text_without_num = segment.source_text
+                leading_numbers.append("")
+            
+            # Protect tags
+            protected_text, mapping = self.tag_manager.protect_tags(text_without_num)
             protected_batch.append(protected_text)
             mappings.append(mapping)
         
-        # Build batch prompt
+        # Build prompts
         system_prompt = self._build_system_prompt(tone)
         user_prompt = self._build_batch_user_prompt(
             protected_batch, target_language, source_language, glossary
         )
         
-        # Make API call
+        # API call
         self._wait_for_rate_limit()
         
         payload = {
@@ -267,16 +276,19 @@ class GPTTranslator:
         response.raise_for_status()
         data = response.json()
         
-        # Parse batch response
+        # Parse response
         content = data['choices'][0]['message']['content'].strip()
         translations = self._parse_batch_response(content, len(batch))
         
-        # Restore tags and update segments
+        # Restore tags and re-add leading numbers
         results = []
         for i, segment in enumerate(batch):
             if i < len(translations):
-                # Restore tags
                 translated_text = self.tag_manager.restore_tags(translations[i], mappings[i])
+                
+                if leading_numbers[i]:
+                    translated_text = leading_numbers[i] + translated_text
+                
                 segment.target_text = translated_text
                 segment.translation = translated_text
                 
@@ -287,7 +299,6 @@ class GPTTranslator:
                     'success': True
                 })
             else:
-                # Missing translation - keep original
                 segment.target_text = segment.source_text
                 segment.translation = segment.source_text
                 
@@ -317,7 +328,6 @@ class GPTTranslator:
         
         prompt_parts = []
         
-        # Add glossary if provided
         if glossary and len(glossary) > 0:
             prompt_parts.append("Use these terms:")
             for source_term, target_term in glossary.items():
@@ -327,24 +337,26 @@ class GPTTranslator:
                     prompt_parts.append(f"  • '{source_term}' → '{target_term}'")
             prompt_parts.append("")
         
-        # Add instructions
-        prompt_parts.append(f"Translate these {len(texts)} segments from {source_language} to {target_language}.")
+        prompt_parts.append(f"Translate these {len(texts)} text segments from {source_language} to {target_language}.")
         prompt_parts.append("")
-        prompt_parts.append("CRITICAL: Return ONLY a JSON array with exactly " + str(len(texts)) + " translations.")
-        prompt_parts.append("Format: [\"translation1\", \"translation2\", ...]")
+        prompt_parts.append("IMPORTANT RULES:")
+        prompt_parts.append("1. Return ONLY a JSON array with exactly " + str(len(texts)) + " translations")
+        prompt_parts.append("2. Preserve ALL numbers, formatting, and structure from the original text")
+        prompt_parts.append("3. Format: [\"translation1\", \"translation2\", ...]")
         prompt_parts.append("")
-        prompt_parts.append("Segments to translate:")
+        prompt_parts.append("Text segments to translate:")
+        prompt_parts.append("")
         
-        # Add numbered segments
         for i, text in enumerate(texts, 1):
-            prompt_parts.append(f"{i}. {text}")
+            prompt_parts.append(f"=== Segment {i} ===")
+            prompt_parts.append(text)
+            prompt_parts.append("")
         
         return "\n".join(prompt_parts)
     
     def _parse_batch_response(self, content: str, expected_count: int) -> List[str]:
         """Parse batch translation JSON response"""
         
-        # Remove markdown code blocks
         content = content.strip()
         if content.startswith('```'):
             lines = content.split('\n')
@@ -356,34 +368,28 @@ class GPTTranslator:
         
         try:
             translations = json.loads(content)
-            
             if not isinstance(translations, list):
                 raise ValueError("Response is not a JSON array")
             
-            # Ensure all are strings
-            translations = [str(t).strip() for t in translations]
+            cleaned_translations = [str(t).strip() for t in translations]
             
-            if len(translations) != expected_count:
-                print(f"⚠️ Warning: Expected {expected_count} translations, got {len(translations)}")
+            if len(cleaned_translations) != expected_count:
+                print(f"Warning: Expected {expected_count} translations, got {len(cleaned_translations)}")
             
-            return translations
+            return cleaned_translations
             
         except json.JSONDecodeError as e:
-            print(f"❌ JSON parse failed: {e}")
+            print(f"JSON parse failed: {e}")
             print(f"Response: {content[:300]}...")
             
-            # Fallback: try to extract quoted strings
-            import re
             matches = re.findall(r'"([^"]*)"', content)
-            
             if len(matches) >= expected_count:
                 return matches[:expected_count]
             
-            # Last resort: return original texts
-            print("⚠️ Using fallback - returning original texts")
+            print("Using fallback - returning empty strings")
             return ["" for _ in range(expected_count)]
     
-    # ========== END OF BATCH TRANSLATION ==========
+    # ========== END OF BATCH ==========
     
     def translate_segments(
         self,
@@ -393,31 +399,15 @@ class GPTTranslator:
         glossary: Optional[Dict[str, str]] = None,
         tone: str = "Professional",
         progress_callback: Optional[callable] = None,
-        use_batch: bool = False,  # NEW: Toggle batch mode
+        use_batch: bool = False,
         batch_size: int = 10
     ) -> List[Dict]:
-        """
-        Translate multiple segments.
-        
-        Args:
-            segments: List of segments
-            target_language: Target language
-            source_language: Source language
-            glossary: Glossary dictionary
-            tone: Translation tone
-            progress_callback: Progress callback
-            use_batch: If True, use batch translation (10x faster!)
-            batch_size: Segments per batch when use_batch=True
-        """
-        
-        # NEW: Choose batch or single mode
         if use_batch:
             return self.translate_segments_batch(
                 segments, target_language, source_language,
                 glossary, tone, batch_size, progress_callback
             )
         
-        # Original single-segment mode
         results = []
         total = len(segments)
         
@@ -428,7 +418,7 @@ class GPTTranslator:
                 source_language=source_language,
                 glossary=glossary,
                 tone=tone,
-                context=segment.context
+                context=getattr(segment, 'context', '')
             )
             
             segment.target_text = result['translated_text']
@@ -443,8 +433,6 @@ class GPTTranslator:
         return results
     
     def _build_system_prompt(self, tone: str) -> str:
-        """Build the system prompt"""
-        
         tone_instructions = {
             "Professional": "Use professional, businesslike language appropriate for corporate training.",
             "Formal": "Use formal, polite language. Use formal pronouns (e.g., 'usted' in Spanish, 'vous' in French).",
@@ -472,8 +460,6 @@ Translation Style: {tone_instruction}"""
         glossary: Optional[Dict[str, str]],
         context: str
     ) -> str:
-        """Build the user prompt"""
-        
         prompt_parts = []
         
         if glossary and len(glossary) > 0:
@@ -496,8 +482,6 @@ Translation Style: {tone_instruction}"""
         return "\n".join(prompt_parts)
     
     def _clean_translation_output(self, text: str) -> str:
-        """Clean up translation output"""
-        
         cleanup_patterns = [
             "**CRITICAL RULES", "**Reglas críticas", "**REGLAS CRÍTICAS",
             "**Translated text:**", "**Texto traducido:**",
@@ -528,7 +512,6 @@ Translation Style: {tone_instruction}"""
         return text.strip()
     
     def _wait_for_rate_limit(self):
-        """Rate limiting"""
         now = time.time()
         self.request_times = [t for t in self.request_times if now - t < 60]
         
@@ -543,7 +526,6 @@ Translation Style: {tone_instruction}"""
         self.request_times.append(now)
     
     def get_stats(self) -> Dict:
-        """Get usage statistics"""
         return {
             'total_requests': self.total_requests,
             'total_tokens': self.total_tokens_used,
@@ -552,7 +534,6 @@ Translation Style: {tone_instruction}"""
         }
     
     def _estimate_cost(self) -> str:
-        """Estimate cost"""
         cost_per_1k = {
             'anthropic/claude-3.5-sonnet': 0.003,
             'openai/gpt-4-turbo': 0.01,

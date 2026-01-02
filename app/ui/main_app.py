@@ -366,7 +366,7 @@ with col2:
                         tone=selected_tone,
                         glossary=glossary if glossary else None,
                         use_batch=True,  # ← This is the missing piece
-                        batch_size=10,
+                        batch_size=15,
                         progress_callback=progress_callback
                         )
                         
