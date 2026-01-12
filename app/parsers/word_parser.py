@@ -146,8 +146,12 @@ class WordParser:
                     text_to_translate = target_cell.text.strip()
                 
                 # Skip empty rows
-                if not text_to_translate:
-                    continue
+                original_was_empty = not text_to_translate
+                if original_was_empty:
+                    text_to_translate = "N/A"
+                    context_note = " ← ORIGINAL CELL WAS EMPTY"
+                else:
+                    context_note = ""
                 
                 # Get source cell for reference
                 source_cell = None
@@ -161,7 +165,7 @@ class WordParser:
                     id_text=id_text or f"table{table_idx}_row{row_idx}",
                     source_text=text_to_translate,  # Translate from Translation column
                     target_text="",  # Will be filled with translated result
-                    context=f"Table {table_idx}, Row {row_idx}, ID {id_text}"
+                    context=f"Table {table_idx}, Row {row_idx}, ID {id_text}{context_note}"
                 )
                 
                 # Store cell references for reconstruction

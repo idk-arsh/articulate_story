@@ -5,6 +5,7 @@ Powered by OpenRouter API
 
 import streamlit as st
 import sys
+import math
 from pathlib import Path
 import os
 import tempfile
@@ -230,8 +231,8 @@ with col1:
                     
                     st.success(f"✅ Parsed successfully! Found {len(segments)} text segments.")
                     
-                    with st.expander("📝 Preview Segments (first 5)"):
-                        for i, seg in enumerate(segments[:5], 1):
+                    with st.expander("📝 Preview Segments (first 10)"):
+                        for i, seg in enumerate(segments[:10], 1):
                             seg_id = getattr(seg, 'id', getattr(seg, 'id_text', f'segment_{i}'))
                             seg_text = getattr(seg, 'source_text', getattr(seg, 'text', ''))
                             st.markdown(f"**Segment {i}** (ID: {seg_id})")
@@ -315,7 +316,7 @@ with col2:
         )
         
         total_segments = len(st.session_state['segments'])
-        expected_calls = (total_segments + 9) // 10 if use_batch else total_segments
+        expected_calls = math.ceil((total_segments) / 70) if use_batch else total_segments
         st.caption(f"Expected API calls: {expected_calls}")
         
         if st.button("🚀 Start Translation", type="primary", use_container_width=True):
@@ -366,7 +367,7 @@ with col2:
                         tone=selected_tone,
                         glossary=glossary if glossary else None,
                         use_batch=True,  # ← This is the missing piece
-                        batch_size=15,
+                        batch_size=70,
                         progress_callback=progress_callback
                         )
                         
